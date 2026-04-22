@@ -1,16 +1,21 @@
 import streamlit as st
+import os
 
-# 設定網頁標題與布局
-st.set_page_config(page_title="SMT 工具 V5.2", layout="centered")
+# 設定網頁
+st.set_page_config(page_title="SMT 工具 V5.3", layout="centered")
 
 st.title("🚀 SMT AOI 萬用轉檔工具")
-st.success("✅ 版本 V5.2：格式與檔名最終修正版")
+st.success("✅ 版本 V5.3：檔案名稱同步 + 精確 Tab 格式")
 
 uploaded_file = st.file_uploader("選擇 AOI 檔案", type=['aoi'])
 
 if uploaded_file is not None:
     try:
-        # 讀取檔案，使用 GBK 編碼以支援中文
+        # 1. 自動抓取原始檔名並改為 .txt
+        base_name = os.path.splitext(uploaded_file.name)[0]
+        output_filename = f"{base_name}.txt"
+
+        # 2. 讀取內容
         content = uploaded_file.read().decode('gbk', errors='ignore')
         lines = content.splitlines()
         
@@ -19,59 +24,46 @@ if uploaded_file is not None:
         
         for line in lines:
             if not line.strip(): continue
-            # 清除空格並以逗號分割
             parts = [p.strip() for p in line.split(',')]
             
             if len(parts) < 6: continue
             
+            # 初始化
             d, x, y, a, n = "", "", "", "", ""
             
-            # --- 核心邏輯：精確抓取欄位 ---
-            # 根據你提供的錯誤檔案反推，修正後的對齊邏輯如下：
             try:
-                # 判斷座標符、X、Y、角度、料號的位置
-                # 這裡採用的邏輯：
-                # parts[0]: 座標符 (如 C100)
-                # parts[3]: X 座標
-                # parts[4]: Y 座標
-                # parts[5]: 角度
-                # parts[2]: 料號 (如 BNG12...)
-                
-                temp_d = parts[0]
-                temp_x = parts[3]
-                temp_y = parts[4]
-                temp_a = parts[5]
-                temp_n = parts[2]
-                
-                # 驗證 X, Y 是否為數字，若不是則嘗試另一種排列
-                float(temp_x)
-                float(temp_y)
-                d, x, y, a, n = temp_d, temp_x, temp_y, temp_a, temp_n
+                # 根據 CLG078-219AFA.txt 的排列反推抓取邏輯
+                # 假設原始 AOI：parts[0]=座標符, parts[3]=X, parts[4]=Y, parts[5]=角度, parts[2]=料號
+                d, x, y, a, n = parts[0], parts[3], parts[4], parts[5], parts[2]
+                float(x); float(y) # 驗證數字
             except:
                 try:
-                    # 備用格式：部分 AOI 座標在 [1],[2]，料號在 [7]，座標符在 [5]
+                    # 備用抓取邏輯
                     d, x, y, a, n = parts[5], parts[1], parts[2], parts[3], parts[7]
                     float(x)
                 except:
                     continue
 
-            # 排除標題列與重複項
+            # 過濾與去重
             if d and not any(k in d for k in ["参考号", "库", "標示符", "Designator", "Part"]):
                 if d not in seen and "基准" not in line:
-                    # 輸出格式：座標符 [TAB] X [TAB] Y [TAB] 角度 [TAB] T [TAB] 料號
+                    # 3. 嚴格執行 [TAB] 分隔格式
                     output_rows.append(f"{d}\t{x}\t{y}\t{a}\tT\t{n}")
                     seen.add(d)
 
         if output_rows:
-            result_text = "\n".join(output_rows)
-            # 點擊按鈕直接下載正確格式的檔案
+            final_content = "\n".join(output_rows)
+            
+            st.markdown(f"**預期輸出的檔名：** `{output_filename}`")
+            
+            # 4. 下載按鈕：帶入動態檔名
             st.download_button(
-                label="📥 點我下載轉檔後的座標檔 (Coordinate_Fixed.txt)",
-                data=result_text,
-                file_name="Coordinate_Fixed.txt",
+                label=f"📥 點我下載 {output_filename}",
+                data=final_content,
+                file_name=output_filename,
                 mime="text/plain"
             )
-            st.info(f"💡 處理完成！共轉換 {len(output_rows)} 筆數據。")
+            st.info(f"💡 轉換完成！已比照標準格式處理共 {len(output_rows)} 筆。")
             
     except Exception as e:
-        st.error(f"轉換發生錯誤：{e}")
+        st.error(f"發生錯誤：{e}")
