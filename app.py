@@ -1,5 +1,15 @@
-import streamlit as st
+import os
 
+# 自動檢查並安裝必要的零件，這能解決 222.jpg 看到的錯誤
+try:
+    import streamlit as st
+    import pandas as pd
+except ImportError:
+    os.system("pip install streamlit pandas")
+    import streamlit as st
+    import pandas as pd
+
+# 設定網頁標題
 st.set_page_config(page_title="SMT 工具 V5.0", layout="centered")
 
 st.title("🚀 SMT AOI 萬用轉檔工具")
@@ -28,15 +38,20 @@ if uploaded_file is not None:
                         float(x), float(y)
                     except: continue
 
+                # 排除標題列與重複項
                 if d and not any(k in d for k in ["参考号", "库", "標示符", "Designator"]):
                     if d not in seen and "基准" not in line:
                         output_rows.append(f"{d}\t{x}\t{y}\t{a}\tT\t{n}")
                         seen.add(d)
 
         if output_rows:
-            st.info(f"✅ 解析完成：{len(output_rows)} 個零件")
-            st.download_button("📥 點此下載 TXT", "\r\n".join(output_rows), f"{uploaded_file.name.split('.')[0]}.txt", use_container_width=True)
-        else:
-            st.warning("找不到資料")
+            result = "\n".join(output_rows)
+            st.download_button(
+                label="📥 點我下載轉檔後的座標檔 (.txt)",
+                data=result,
+                file_name="SMT_Coordinate_Fixed.txt",
+                mime="text/plain"
+            )
+            st.info(f"💡 處理完成！共轉換 {len(output_rows)} 筆座標。")
     except Exception as e:
-        st.error(f"錯誤: {e}")
+        st.error(f"發生錯誤：{e}")
