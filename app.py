@@ -1,33 +1,32 @@
 import streamlit as st
 import os
 
-# 設定網頁
-st.set_page_config(page_title="SMT 批量轉檔工具 V7.5", layout="centered")
+st.set_page_config(page_title="SMT 批量轉檔工具 V7.6", layout="centered")
 
 st.title("🚀 SMT AOI 批量獨立轉檔系統")
-st.success("✅ 版本 V7.5：解決大小寫顯示衝突問題")
+st.info("✅ 版本 V7.6：內容深度診斷模式")
 
-# 1. 萬用上傳
-files = st.file_uploader("請選取多個檔案 (不限大小寫)", accept_multiple_files=True, key="v75_uploader")
+files = st.file_uploader("請上傳檔案", accept_multiple_files=True, key="v76_uploader")
 
 if files:
-    st.info(f"📊 系統偵測到檔案總數：{len(files)} 個")
     st.markdown("---")
-    
-    # 建立一個清單來存放轉換後的結果
-    final_list = []
-
-    for f in files:
+    for i, f in enumerate(files):
         try:
             f.seek(0)
-            raw = f.read().decode('gbk', errors='ignore')
-            lines = raw.splitlines()
-            
+            raw_bytes = f.read()
+            # 診斷：如果檔案太小，直接報錯
+            if len(raw_bytes) < 100:
+                st.error(f"❌ 檔案 【{f.name}】 太小 ({len(raw_bytes)} bytes)，裡面可能沒有座標資料。")
+                continue
+
+            content = raw_bytes.decode('gbk', errors='ignore')
+            lines = content.splitlines()
             output_rows = []
             seen = set()
+            
             for line in lines:
                 if not line.strip(): continue
-                p = [i.strip() for i in line.split(',')]
+                p = [item.strip() for item in line.split(',')]
                 if len(p) < 6: continue
                 try:
                     d, x, y, a, n = p[0], p[3], p[4], p[5], p[2]
@@ -37,36 +36,21 @@ if files:
                             output_rows.append(f"{d}\t{x}\t{y}\t{a}\tT\t{n}")
                             seen.add(d)
                 except: continue
-            
-            # 只要有內容，就存進清單 (不管檔名大小寫)
-            if output_rows:
-                final_list.append({
-                    "orig_name": f.name,
-                    "target_name": os.path.splitext(f.name)[0] + ".txt",
-                    "content": "\r\n".join(output_rows)
-                })
-        except Exception as e:
-            st.error(f"檔案 {f.name} 解析失敗")
 
-    # 2. 依照清單順序，強迫畫出所有按鈕
-    if final_list:
-        st.markdown("### 📥 下載清單：")
-        for i, item in enumerate(final_list):
-            with st.container():
-                c1, c2 = st.columns([3, 1])
-                with c1:
-                    # 這裡同時顯示原始檔名，方便你確認大小寫
-                    st.write(f"📄 **{item['target_name']}**")
-                    st.caption(f"來源：{item['orig_name']}")
-                with c2:
-                    # 使用 i (序號) 作為 key，這是最保險的做法
+            # 如果抓不到座標，顯示原因
+            if not output_rows:
+                st.warning(f"⚠️ 檔案 【{f.name}】 已讀取，但內容不符合 AOI 座標格式（可能是空檔或加密檔）。")
+                # 這裡增加一個小功能：讓你看看檔案前兩行長怎樣，幫忙抓鬼
+                st.code(f"檔案前兩行內容：\n{lines[:2]}")
+            else:
+                target = os.path.splitext(f.name)[0] + ".txt"
+                with st.expander(f"✅ 轉換成功：{target}", expanded=True):
                     st.download_button(
-                        label="下載",
-                        data=item['content'],
-                        file_name=item['target_name'],
+                        label=f"📥 下載 {target}",
+                        data="\r\n".join(output_rows),
+                        file_name=target,
                         mime="text/plain",
-                        key=f"download_idx_{i}" 
+                        key=f"dl_final_{i}"
                     )
-                st.markdown("---")
-else:
-    st.warning("請選取檔案上傳。")
+        except Exception as e:
+            st.error(f"❌ 檔案 {f.name} 發生系統錯誤: {e}")
