@@ -2,69 +2,71 @@ import streamlit as st
 import os
 
 # 設定網頁標題
-st.set_page_config(page_title="SMT 批量合併工具 V6.1", layout="centered")
+st.set_page_config(page_title="SMT 批量轉檔工具 V6.2", layout="centered")
 
-st.title("📋 SMT 批量合併轉檔系統")
-st.success("✅ 版本 V6.1：多檔案拖曳 + 自動合併為單一 TXT (免解壓)")
+st.title("🚀 SMT AOI 批量獨立轉檔系統")
+st.success("✅ 版本 V6.2：支援多檔案拖曳 + 獨立下載按鈕 (免解壓)")
 
-# 支援多檔案選取
+# 允許多檔案上傳
 uploaded_files = st.file_uploader("請拖曳多個 AOI 檔案進去", type=['aoi'], accept_multiple_files=True)
 
 if uploaded_files:
-    combined_result = ""
-    file_count = 0
-    total_rows = 0
-
+    st.markdown("### 📥 轉換完成，請分別點擊下載：")
+    
     for uploaded_file in uploaded_files:
         try:
-            # 讀取原始檔名作為區隔標籤
-            file_name_label = os.path.splitext(uploaded_file.name)[0]
-            
-            # 讀取內容 (GBK 編碼)
+            # 1. 自動抓取原始檔名並改為 .txt
+            base_name = os.path.splitext(uploaded_file.name)[0]
+            output_filename = f"{base_name}.txt"
+
+            # 2. 讀取內容 (GBK 編碼)
             content = uploaded_file.read().decode('gbk', errors='ignore')
             lines = content.splitlines()
             
-            current_file_rows = []
+            output_rows = []
             seen = set()
-
+            
             for line in lines:
                 if not line.strip(): continue
                 parts = [p.strip() for p in line.split(',')]
+                
                 if len(parts) < 6: continue
                 
                 try:
-                    # 格式抓取
+                    # 抓取座標符[0], X[3], Y[4], 角度[5], 料號[2]
                     d, x, y, a, n = parts[0], parts[3], parts[4], parts[5], parts[2]
-                    float(x); float(y)
+                    float(x); float(y) 
                 except:
                     try:
+                        # 備用抓取邏輯
                         d, x, y, a, n = parts[5], parts[1], parts[2], parts[3], parts[7]
                         float(x)
                     except: continue
 
                 if d and not any(k in d for k in ["参考号", "库", "標示符", "Designator", "Part"]):
                     if d not in seen and "基准" not in line:
-                        current_file_rows.append(f"{d}\t{x}\t{y}\t{a}\tT\t{n}")
+                        # Tab 鍵對齊
+                        output_rows.append(f"{d}\t{x}\t{y}\t{a}\tT\t{n}")
                         seen.add(d)
 
-            if current_file_rows:
-                # 在合併的內容中加入檔案標籤，方便現場區分
-                combined_result += f"--- 檔案: {file_name_label} ---\r\n"
-                combined_result += "\r\n".join(current_file_rows) + "\r\n\r\n"
-                file_count += 1
-                total_rows += len(current_file_rows)
+            if output_rows:
+                # 3. 組合文字 (Windows 換行格式)
+                final_result = "\r\n".join(output_rows)
+                
+                # 4. 為每個檔案生成獨立的下載按鈕
+                # 用 columns 讓介面整齊一點
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.write(f"📄 {output_filename}")
+                with col2:
+                    st.download_button(
+                        label="下載",
+                        data=final_result,
+                        file_name=output_filename,
+                        mime="text/plain",
+                        key=f"btn_{output_filename}" # 給每個按鈕唯一識別碼
+                    )
+                st.markdown("---")
                 
         except Exception as e:
-            st.error(f"檔案 {uploaded_file.name} 轉換失敗: {e}")
-
-    if file_count > 0:
-        st.markdown(f"---")
-        st.info(f"📊 已完成合併：共 **{file_count}** 個專案，合計 **{total_rows}** 筆座標。")
-        
-        # 產生下載按鈕，檔名預設為合併後的名稱
-        st.download_button(
-            label="📥 點我下載合併後的座標檔 (Combined_Coordinate.txt)",
-            data=combined_result,
-            file_name="Combined_Coordinate.txt",
-            mime="text/plain"
-        )
+            st.error(f"檔案 {uploaded_file.name} 處理出錯: {e}")
