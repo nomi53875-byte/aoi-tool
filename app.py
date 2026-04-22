@@ -1,57 +1,72 @@
-import os
-import subprocess
-import sys
+import streamlit as st
+import pandas as pd
 
-# 【自動維修包】如果缺零件，程式會強迫自己安裝
-def install(package):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-
-try:
-    import streamlit as st
-except ImportError:
-    install('streamlit')
-    import streamlit as st
-
-try:
-    import pandas as pd
-except ImportError:
-    install('pandas')
-    import pandas as pd
-
-# 網頁正式內容
+# 強制設定網頁標題與風格
 st.set_page_config(page_title="SMT 工具 V5.0", layout="centered")
-st.title("🚀 SMT AOI 萬用轉檔工具")
-st.success("✅ 版本 V5.0：純淨下載模式（自動修復版）")
 
+st.title("🚀 SMT AOI 萬用轉檔工具")
+st.markdown("---")
+st.success("✅ 版本 V5.0：純淨下載模式（格式與檔名已修正）")
+
+# 檔案上傳器
 uploaded_file = st.file_uploader("選擇 AOI 檔案", type=['aoi'])
 
 if uploaded_file is not None:
     try:
+        # 讀取檔案內容
         content = uploaded_file.read().decode('gbk', errors='ignore')
         lines = content.splitlines()
+        
         output_rows = []
-        seen = set()
+        seen_designators = set()
         
         for line in lines:
-            parts = line.strip().split(',')
-            if len(parts) >= 6:
+            if not line.strip():
+                continue
+            
+            parts = [p.strip() for p in line.split(',')]
+            
+            # 初始化變數
+            d, x, y, a, n = "", "", "", "", ""
+            
+            try:
+                # 嘗試格式 A (常見格式)
+                if len(parts) >= 6:
+                    d, x, y, a, n = parts[0], parts[3], parts[4], parts[5], parts[2]
+                    float(x), float(y) # 驗證座標是否為數字
+                else:
+                    raise ValueError
+            except:
                 try:
-                    d, x, y, a, n = parts[0].strip(), parts[3].strip(), parts[4].strip(), parts[5].strip(), parts[2].strip()
-                    float(x), float(y)
-                except:
-                    try:
-                        d, x, y, a, n = parts[5].strip(), parts[1].strip(), parts[2].strip(), parts[3].strip(), parts[7].strip()
+                    # 嘗試格式 B (備用格式)
+                    if len(parts) >= 8:
+                        d, x, y, a, n = parts[5], parts[1], parts[2], parts[3], parts[7]
                         float(x), float(y)
-                    except: continue
+                except:
+                    continue # 格式不符就跳過
 
-                if d and not any(k in d for k in ["参考号", "库", "標示符", "Designator"]):
-                    if d not in seen and "基准" not in line:
-                        output_rows.append(f"{d}\t{x}\t{y}\t{a}\tT\t{n}")
-                        seen.add(d)
+            # 過濾條件：排除標題、重複項、基準點
+            if d and not any(k in d for k in ["参考号", "库", "標示符", "Designator"]):
+                if d not in seen_designators and "基准" not in line:
+                    # 嚴格執行 座標符 [TAB] X [TAB] Y [TAB] 角度 [TAB] T [TAB] 料號
+                    output_rows.append(f"{d}\t{x}\t{y}\t{a}\tT\t{n}")
+                    seen_designators.add(d)
 
         if output_rows:
-            result = "\n".join(output_rows)
-            st.download_button(label="📥 點我下載轉檔後的座標檔 (.txt)", data=result, file_name="SMT_Fixed.txt", mime="text/plain")
-            st.info(f"💡 處理完成！共轉換 {len(output_rows)} 筆座標。")
+            # 組合最終文字內容
+            final_result = "\n".join(output_rows)
+            
+            # 下載按鈕，設定正確的檔名
+            st.download_button(
+                label="📥 點我下載轉檔後的座標檔 (.txt)",
+                data=final_result,
+                file_name="Converted_Coordinate.txt",
+                mime="text/plain"
+            )
+            st.info(f"💡 轉換成功！總計：{len(output_rows)} 筆數據。")
+            
     except Exception as e:
-        st.error(f"發生錯誤：{e}")
+        st.error(f"轉換過程中發生錯誤：{e}")
+
+st.markdown("---")
+st.caption("提示：若網頁無法開啟，請確認 GitHub 專案中是否有 requirements.txt 檔案。")
