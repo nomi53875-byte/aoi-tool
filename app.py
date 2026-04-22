@@ -4,7 +4,7 @@ import os
 # 設定網頁標題
 st.set_page_config(page_title="SMT 工具 V5.5", layout="centered")
 
-st.title("🚀 SMT AOI 萬用轉檔工具")
+st.title("📊 座標自動化轉換")
 st.success("✅ 版本 V5.5：終極完美版 (檔名與換行全修正)")
 
 uploaded_file = st.file_uploader("選擇 AOI 檔案", type=['aoi'])
