@@ -3,7 +3,7 @@ import os
 
 st.set_page_config(page_title="SMT 萬用轉檔系統 V8.5", layout="centered")
 
-st.title("🚀 SMT AOI 終極萬用轉檔系統")
+st.title("📊 CSV→AOI 轉檔工具")
 st.success("✅ 版本 V8.5：解決欄位偏移問題 (小寫檔專用修正)")
 
 files = st.file_uploader("請上傳 AOI 檔案 (支援多選)", accept_multiple_files=True, key="v85_uploader")
