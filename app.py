@@ -19,8 +19,9 @@ if files:
             content = ""
             # 優先嘗試 UTF-16 (為了解決截圖中出現 \x00 的問題)
             try:
-                content = raw_bytes.decode('utf-16')
-                if '\x00' in content or len(content) < 10: # 如果讀出來還是怪怪的
+                # 嘗試使用 utf-16-le 或 utf-16-be，通常 windows 是 le
+                content = raw_bytes.decode('utf-16', errors='strict')
+                if '\x00' in content: # 如果解出來還有空字元，代表解錯了
                     raise ValueError
             except:
                 # 備援方案：嘗試 GBK 或 UTF-8
@@ -29,15 +30,17 @@ if files:
                 except:
                     content = raw_bytes.decode('utf-8', errors='ignore')
 
+            # 徹底清除剩餘的 \x00 避免干擾分割
+            content = content.replace('\x00', '')
             lines = content.splitlines()
             output_rows = []
             seen = set()
             
             for line in lines:
-                # 去除隱形的空字元並處理分割
-                line = line.replace('\x00', '').strip()
+                line = line.strip()
                 if not line: continue
                 
+                # 支援逗號或 Tab 分割
                 p = [item.strip() for item in line.split(',')]
                 if len(p) < 6: continue
                 
@@ -51,7 +54,7 @@ if files:
                 except: continue
 
             if not output_rows:
-                st.warning(f"⚠️ 檔案 【{f.name}】 解析不到座標。請確認內部格式。")
+                st.warning(f"⚠️ 檔案 【{f.name}】 已讀取但解析不到座標。")
             else:
                 target = os.path.splitext(f.name)[0] + ".txt"
                 with st.expander(f"✅ 轉換成功：{target}", expanded=True):
