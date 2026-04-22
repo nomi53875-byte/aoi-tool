@@ -2,37 +2,28 @@ import streamlit as st
 import os
 
 # 設定網頁
-st.set_page_config(page_title="SMT 批量轉檔工具 V7.4", layout="centered")
+st.set_page_config(page_title="SMT 批量轉檔工具 V7.5", layout="centered")
 
 st.title("🚀 SMT AOI 批量獨立轉檔系統")
-st.info("✅ 版本 V7.4：Debug 強制顯影模式")
+st.success("✅ 版本 V7.5：解決大小寫顯示衝突問題")
 
-# 1. 萬用上傳：完全不設 type，讓所有檔案都能進來
-files = st.file_uploader("請【一次選取】多個檔案上傳", accept_multiple_files=True, key="debug_uploader")
+# 1. 萬用上傳
+files = st.file_uploader("請選取多個檔案 (不限大小寫)", accept_multiple_files=True, key="v75_uploader")
 
 if files:
-    # 顯示 Debug 資訊：讓你知道系統「實際上」收到了哪些檔名
-    st.write("---")
-    st.write(f"🔍 **系統偵測到以下檔案 (共 {len(files)} 個)：**")
-    for f in files:
-        st.write(f"- `{f.name}` (大小: {f.size} bytes)")
-    st.write("---")
-
-    # 建立一個暫存空間
-    if 'data_center' not in st.session_state:
-        st.session_state['data_center'] = {}
+    st.info(f"📊 系統偵測到檔案總數：{len(files)} 個")
+    st.markdown("---")
     
-    # 清空舊資料
-    st.session_state['data_center'] = {}
+    # 建立一個清單來存放轉換後的結果
+    final_list = []
 
     for f in files:
         try:
-            # 只要是檔案就讀取內容，不預設副檔名
             f.seek(0)
             raw = f.read().decode('gbk', errors='ignore')
             lines = raw.splitlines()
             
-            output = []
+            output_rows = []
             seen = set()
             for line in lines:
                 if not line.strip(): continue
@@ -43,35 +34,39 @@ if files:
                     float(x); float(y)
                     if d and not any(k in d for k in ["参考号", "库", "標示符", "Designator"]):
                         if d not in seen and "基准" not in line:
-                            output.append(f"{d}\t{x}\t{y}\t{a}\tT\t{n}")
+                            output_rows.append(f"{d}\t{x}\t{y}\t{a}\tT\t{n}")
                             seen.add(d)
                 except: continue
             
-            if output:
-                new_name = os.path.splitext(f.name)[0] + ".txt"
-                st.session_state['data_center'][f.name] = {
-                    "output_name": new_name,
-                    "content": "\r\n".join(output)
-                }
+            # 只要有內容，就存進清單 (不管檔名大小寫)
+            if output_rows:
+                final_list.append({
+                    "orig_name": f.name,
+                    "target_name": os.path.splitext(f.name)[0] + ".txt",
+                    "content": "\r\n".join(output_rows)
+                })
         except Exception as e:
-            st.write(f"❌ 檔案 {f.name} 內部格式解析失敗: {e}")
+            st.error(f"檔案 {f.name} 解析失敗")
 
-    # 顯示下載按鈕
-    if st.session_state['data_center']:
+    # 2. 依照清單順序，強迫畫出所有按鈕
+    if final_list:
         st.markdown("### 📥 下載清單：")
-        for orig_name, data in st.session_state['data_center'].items():
+        for i, item in enumerate(final_list):
             with st.container():
                 c1, c2 = st.columns([3, 1])
                 with c1:
-                    st.write(f"📄 **{data['output_name']}**")
+                    # 這裡同時顯示原始檔名，方便你確認大小寫
+                    st.write(f"📄 **{item['target_name']}**")
+                    st.caption(f"來源：{item['orig_name']}")
                 with c2:
+                    # 使用 i (序號) 作為 key，這是最保險的做法
                     st.download_button(
                         label="下載",
-                        data=data['content'],
-                        file_name=data['output_name'],
+                        data=item['content'],
+                        file_name=item['target_name'],
                         mime="text/plain",
-                        key=f"dl_v74_{orig_name}"
+                        key=f"download_idx_{i}" 
                     )
                 st.markdown("---")
 else:
-    st.warning("尚未偵測到任何檔案上傳。")
+    st.warning("請選取檔案上傳。")
