@@ -1,9 +1,8 @@
 import streamlit as st
 import os
-import time
 
 # 設定網頁
-st.set_page_config(page_title="SMT 批量轉檔工具 V6.5", layout="centered")
+st.set_page_config(page_title="SMT 批量轉檔工具 V6.6", layout="centered")
 
 st.title("🚀 SMT AOI 批量獨立轉檔系統")
 
@@ -13,16 +12,16 @@ uploaded_files = st.file_uploader("請【框選】多個檔案上傳", type=['ao
 if uploaded_files:
     st.info(f"📊 目前偵測到已上傳檔案數：{len(uploaded_files)} 個")
     st.markdown("---")
-    st.markdown("### 📥 下載清單：")
+    
+    # 建立一個容器來一次顯示所有按鈕
+    results_to_show = []
 
-    # 使用清單來存放處理好的資料，避免迴圈內衝突
     for index, uploaded_file in enumerate(uploaded_files):
         try:
-            # 取得檔名
             base_name = os.path.splitext(uploaded_file.name)[0]
             output_filename = f"{base_name}.txt"
 
-            # 讀取並處理內容
+            # 讀取內容
             content = uploaded_file.read().decode('gbk', errors='ignore')
             lines = content.splitlines()
             output_rows = []
@@ -47,25 +46,32 @@ if uploaded_files:
                         output_rows.append(f"{d}\t{x}\t{y}\t{a}\tT\t{n}")
                         seen.add(d)
 
-            # 2. 關鍵修復：確保每個檔案都有獨立的區塊與唯一的 Key
             if output_rows:
                 final_result = "\r\n".join(output_rows)
-                
-                # 使用 index (0, 1, 2...) 來確保每個按鈕的身分證字號完全不同
-                with st.expander(f"✅ 檔案就緒：{output_filename}", expanded=True):
-                    st.download_button(
-                        label=f"📥 下載 {output_filename}",
-                        data=final_result,
-                        file_name=output_filename,
-                        mime="text/plain",
-                        key=f"btn_{index}_{base_name}" 
-                    )
+                # 將處理好的資料存入暫存清單
+                results_to_show.append({
+                    "filename": output_filename,
+                    "data": final_result,
+                    "key": f"btn_v66_{index}_{base_name}"
+                })
             
-            # 讀取完後重設檔案指標，避免重複讀取錯誤
+            # 讀取完畢歸零
             uploaded_file.seek(0)
                     
         except Exception as e:
             st.error(f"檔案 {uploaded_file.name} 處理出錯: {e}")
 
+    # 2. 統一在最後把清單畫出來
+    if results_to_show:
+        st.markdown("### 📥 下載清單：")
+        for item in results_to_show:
+            with st.expander(f"✅ 檔案就緒：{item['filename']}", expanded=True):
+                st.download_button(
+                    label=f"📥 下載 {item['filename']}",
+                    data=item['data'],
+                    file_name=item['filename'],
+                    mime="text/plain",
+                    key=item['key']
+                )
 else:
     st.warning("請將檔案拖入上方區域。")
